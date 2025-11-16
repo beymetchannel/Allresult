@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>戦績ランキング</title>
+</head>
+<body>
+<h2>戦績ランキング</h2>
+<div id="ranking">読み込み中...</div>
+
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+  const supabaseUrl = 'https://ddmjevqneetbmahtcqdl.supabase.co';
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkbWpldnFuZWV0Ym1haHRjcWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5NzM5MTksImV4cCI6MjA3ODU0OTkxOX0.L63jZ8n7MjsTuGaNYYyRWvxOM-gzYlFzIMuZ4gvgHrk';
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  async function loadRanking() {
+    const rankingDiv = document.getElementById("ranking");
+
+    // ① ResultDB を取得
+    const { data, error } = await supabase
+      .from("ResultDB")
+      .select("*");
+
+    if (error) {
+      rankingDiv.textContent = "データ取得エラー: " + error.message;
+      return;
+    }
+
+    // ② ブレーダーごとに勝敗集計
+    const stats = {};  
+    // ② 対戦カードごとに集計（A vs B 単位）
+// ② 対戦カードごとに集計（A vs B 単位）
+const matchups = {};  
+// key: "A|B"（ブレーダー名をソートして固定化する）
+
+data.forEach(row => {
+  const A = row.LBlader;
+  const B = row.RBlader;
+
+  const players = [A, B].sort();
+  const key = players.join("|");
+
+  if (!matchups[key]) {
+    matchups[key] = {
+      p1: players[0],
+      p2: players[1],
+      points: {
+        [players[0]]: 0,
+        [players[1]]: 0
+      }
+    };
+  }
+
+  // ポイント加算（合計値）
+  matchups[key].points[A] += row.LPoint;
+  matchups[key].points[B] += row.RPoint;
+});
+
+// ③ ブレーダー個別の勝敗 + 得点・失点 を集計
+
+
+Object.values(matchups).forEach(m => {
+  const { p1, p2, points } = m;
+  const p1p = points[p1];
+  const p2p = points[p2];
+
+  // 初期化
+  if (!stats[p1]) stats[p1] = { win: 0, lose: 0, draw: 0, scored: 0, conceded: 0 };
+  if (!stats[p2]) stats[p2] = { win: 0, lose: 0, draw: 0, scored: 0, conceded: 0 };
+
+  // 得点・失点（合計ポイントでカウント）
+  stats[p1].scored += p1p;
+  stats[p1].conceded += p2p;
+
+  stats[p2].scored += p2p;
+  stats[p2].conceded += p1p;
+
+  // 勝敗判定（合計ポイントで判定）
+  if (p1p > p2p) {
+    stats[p1].win++;
+    stats[p2].lose++;
+  } else if (p1p < p2p) {
+    stats[p2].win++;
+    stats[p1].lose++;
+  } else {
+    stats[p1].draw++;
+    stats[p2].draw++;
+  }
+});
+
+
+
+    // ③ ランキング（勝利数の降順）
+ // ④ ランキング（勝数の降順）
+    // ④ ランキング（勝率 → 得失点差 の順）
+// ④ ランキング（勝率 → 得失点差 の順）
+const rankingArray = Object.entries(stats)
+  .map(([name, s]) => {
+    const totalMatches = s.win + s.lose + s.draw;
+
+    return {
+      name,
+      win: s.win,
+      lose: s.lose,
+      draw: s.draw,
+      scored: s.scored,
+      conceded: s.conceded,
+      diff: s.scored - s.conceded,
+      winRate: totalMatches > 0
+        ? (s.win / totalMatches * 100)
+        : 0
+    };
+  })
+  .sort((a, b) => {
+    // ① 勝率（降順）
+    if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+
+    // ② 得失点差（降順）
+    return b.diff - a.diff;
+  });
+
+
+
+    // 表で表示
+ let html = `
+  <table border="1" cellpadding="6">
+    <tr>
+      <th>順位</th>
+      <th>ブレーダー</th>
+      <th>勝</th>
+      <th>負</th>
+      <th>分</th>
+      <th>得点</th>
+      <th>失点</th>
+      <th>得失点差</th>
+      <th>勝率</th>
+    </tr>
+`;
+
+rankingArray.forEach((p, i) => {
+  html += `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${p.name}</td>
+      <td>${p.win}</td>
+      <td>${p.lose}</td>
+      <td>${p.draw}</td>
+      <td>${p.scored}</td>
+      <td>${p.conceded}</td>
+      <td>${p.diff}</td>
+      <td>${p.winRate.toFixed(1)}%</td>
+    </tr>
+  `;
+});
+
+
+    html += "</table>";
+    rankingDiv.innerHTML = html;
+}
+
+  loadRanking();
+</script>
+</body>
+</html>
