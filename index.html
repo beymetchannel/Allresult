@@ -1,156 +1,356 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>戦績ランキング</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>100戦杯リーグ表 v2.0</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* フォントの適用 */
+        @font-face {
+            font-family: 'LINESeedJP';
+            src: url('./LINESeedJP_TTF_Bd.ttf') format('truetype');
+            font-weight: bold;
+        }
+
+        :root {
+            --bg-color: #f8f9fa;
+            --text-main: #212529;
+            --accent-color: #343a40;
+            --border-color: #dee2e6;
+            --card-white: #ffffff;
+            
+            /* トップ4専用装飾 */
+            --rank-1st: linear-gradient(135deg, #ffd700, #ffae00);
+            --rank-2nd: linear-gradient(135deg, #c0c0c0, #e8e8e8);
+            --rank-3rd: linear-gradient(135deg, #cd7f32, #ff9966);
+            --rank-4th: linear-gradient(135deg, #00f2ff, #0072ff);
+        }
+
+        ::-webkit-scrollbar { display: none; }
+        
+        body { 
+            font-family: 'LINESeedJP', sans-serif; 
+            background: var(--bg-color); 
+            color: var(--text-main); 
+            padding: 15px; 
+            margin: 0; 
+            font-size: 18px; 
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        h2 { 
+            background: var(--bg-color); 
+            color: var(--accent-color); 
+            margin: 0; 
+            padding: 15px 0 10px 10px; 
+            text-align: left; /* 左揃えに変更 */
+            font-size: 1.5em;
+            position: sticky;
+            z-index: 100;
+        }
+
+        #ranking-section { top: 0; z-index: 101; position: sticky; padding-bottom: 15px; background: var(--bg-color); }
+        #priority-section { top: 165px; z-index: 100; position: sticky; padding-bottom: 15px; background: var(--bg-color); }
+
+        .container-box { 
+            display: flex; 
+            width: 100%; 
+            gap: 12px; 
+            background: #eee; 
+            padding: 15px; 
+            border-radius: 12px;
+            box-sizing: border-box;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        /* --- Rank Card スタイル --- */
+        .rank-card {
+            flex: 1;
+            min-width: 0;
+            background: var(--card-white);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 10px;
+            display: grid;
+            grid-template-columns: 50px 1fr 50px; 
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.3s;
+        }
+
+        /* トップ4の特殊装飾：文字色を白にして視認性確保 */
+        .rank-card.top-rank { color: #fff; border: none; }
+        .rank-card.rank-1 { background: var(--rank-1st); }
+        .rank-card.rank-2 { background: var(--rank-2nd); color: #333; } /* シルバーは濃い文字 */
+        .rank-card.rank-3 { background: var(--rank-3rd); }
+        .rank-card.rank-4 { background: var(--rank-4th); }
+
+        .rank-icon { width: 48px; height: 48px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.8); object-fit: cover; background: #fff; }
+        .rank-name { font-size: 0.95em; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rank-win-val { font-size: 1.1em; font-weight: 900; text-align: right; }
+
+        /* --- 優先マッチアップ スタイル --- */
+        .matchup-card {
+            flex: 1;
+            background: var(--card-white);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 12px 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .matchup-blader { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .matchup-vs { font-size: 0.9em; color: #adb5bd; font-weight: 900; }
+        .matchup-name { font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold; color: #495057; }
+
+        /* --- リーグ表スタイル (ホワイト) --- */
+        .table-container { overflow: visible; background: #fff; margin-top: 25px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        table { border-collapse: separate; border-spacing: 0; width: 100%; }
+        th, td { border: 0.5px solid var(--border-color); padding: 12px; text-align: center; font-size: 1.1em; }
+
+        thead th { 
+            position: sticky; 
+            top: 330px; 
+            background: #f1f3f5; 
+            z-index: 90; 
+            height: 65px;
+            color: #495057;
+        }
+
+        .th-icon-cell { padding: 0 !important; min-width: 45px; }
+
+        .top-left-lock {
+            position: sticky;
+            top: 330px;
+            left: 0;
+            background: #e9ecef;
+            z-index: 110 !important; 
+            color: #212529;
+            font-weight: 900;
+        }
+
+        .v-col-header { 
+            position: sticky; 
+            left: 0; 
+            background: #ffffff; 
+            z-index: 80; 
+            width: 250px;
+            min-width: 250px;
+            text-align: left;
+            white-space: nowrap;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.03);
+            font-weight: 1000;
+        }
+
+        .header-flex { display: flex; align-items: center; gap: 12px; }
+        .blader-icon-sm { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #dee2e6; vertical-align: middle; background: #eee; }
+        .match-label { font-size: 0.75em; color: #868e96; margin-left: auto; font-weight: normal; }
+
+        .res-win { color: #e03131; font-weight: 900; font-size: 1.4em;padding: 0; }
+        .res-lose { color: #1971c2; font-weight: 900; font-size: 1.4em;padding: 0;  }
+        .res-draw { color: #099268; font-weight: 900; font-size: 1.4em;padding: 0;  }
+        .self-match { background: #cccccc; }
+
+        .loading { text-align: center; padding: 150px; color: #adb5bd; font-size: 2em; font-weight: 900; }
+    </style>
 </head>
 <body>
-<h2>戦績ランキング</h2>
-<div id="ranking">読み込み中...</div>
 
-<script type="module">
-  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+    <div id="ranking-section">
+        <h2>🏆 トップ10ブレーダー</h2>
+        <div id="ranking-output" class="container-box"></div>
+    </div>
 
-  const supabaseUrl = 'https://ddmjevqneetbmahtcqdl.supabase.co';
-  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkbWpldnFuZWV0Ym1haHRjcWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5NzM5MTksImV4cCI6MjA3ODU0OTkxOX0.L63jZ8n7MjsTuGaNYYyRWvxOM-gzYlFzIMuZ4gvgHrk';
-  const supabase = createClient(supabaseUrl, supabaseKey);
+    <div id="priority-section">
+        <h2>⚔️ 優先マッチアップ(対戦数が少ないブレーダー)</h2>
+        <div id="priority-output" class="container-box"></div>
+    </div>
 
-  async function loadRanking() {
-    const rankingDiv = document.getElementById("ranking");
+    <div id="loading" class="loading">STADIUM DATA INITIALIZING...</div>
+    
+    <div id="table-output" class="table-container" style="display:none;"></div>
 
-    // ① ResultDB を取得
-    const { data, error } = await supabase
-      .from("ResultDB")
-      .select("*");
+    <script>
+        const SUPABASE_URL = 'https://yyrsscvofuoufkujetgf.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5cnNzY3ZvZnVvdWZrdWpldGdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwMzIxMjksImV4cCI6MjA3OTYwODEyOX0.mNPIAGFKhJ65dsSllBprGYk3yZfnJXfYmDcdljW8xA4';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    if (error) {
-      rankingDiv.textContent = "データ取得エラー: " + error.message;
-      return;
-    }
+        async function initDashboard() {
+            try {
+                const [bRes, mRes] = await Promise.all([
+                    _supabase.from('CUP_BLADER').select('*').eq('entry', true),
+                    _supabase.from('CUP_MATCH').select('*')
+                ]);
 
-    // --- ブレーダーの戦績 ---
-    const stats = {};
+                if (bRes.error || mRes.error) throw bRes.error;
 
-    // --- 対戦カードごと（勝敗判定用） ---
-    const matchups = {};
+                const bladers = bRes.data;
+                const matches = mRes.data;
 
-    // --- まずレコード単位で得点・失点を計算 ---
-    data.forEach(row => {
-      const L = row.LBlader;
-      const R = row.RBlader;
+                const stats = {};
+                const resultsMatrix = {};
+                bladers.forEach(b => {
+                    stats[b.blader_id] = { ...b, wins: 0, draws: 0, totalScore: 0, matchCount: 0 };
+                });
 
-      if (!stats[L]) stats[L] = { win: 0, lose: 0, draw: 0, scored: 0, conceded: 0 };
-      if (!stats[R]) stats[R] = { win: 0, lose: 0, draw: 0, scored: 0, conceded: 0 };
+                const matchGroups = {};
+                matches.forEach(m => {
+                    if (!stats[m.blader_id]) return;
+                    stats[m.blader_id].matchCount++;
+                    stats[m.blader_id].totalScore += (m.score || 0);
+                    if (m.result === 'win') stats[m.blader_id].wins++;
+                    if (m.result === 'draw') stats[m.blader_id].draws++;
 
-      // L側
-      if (row.LPoint > 0) stats[L].scored += row.LPoint;
-      if (row.LPoint < 0) stats[L].conceded += row.LPoint;
+                    if (!matchGroups[m.match_id]) matchGroups[m.match_id] = [];
+                    matchGroups[m.match_id].push(m);
+                });
 
-      // R側
-      if (row.RPoint > 0) stats[R].scored += row.RPoint;
-      if (row.RPoint < 0) stats[R].conceded += row.RPoint;
+                Object.values(matchGroups).forEach(group => {
+                    if (group.length === 2) {
+                        const [p1, p2] = group;
+                        const sym = (r) => r === 'win' ? '○' : (r === 'lose' ? '×' : '△');
+                        const cls = (r) => r === 'win' ? 'res-win' : (r === 'lose' ? 'res-lose' : 'res-draw');
+                        resultsMatrix[`${p1.blader_id}-${p2.blader_id}`] = `<span class="${cls(p1.result)}">${sym(p1.result)}</span>`;
+                        resultsMatrix[`${p2.blader_id}-${p1.blader_id}`] = `<span class="${cls(p2.result)}">${sym(p2.result)}</span>`;
+                    }
+                });
 
-      // --- 勝敗判定用に対戦カード単位で集計 ---
-      const players = [L, R].sort();
-      const key = players.join("|");
+                // トップ10ブレーダー描画
+                const winRanked = Object.values(stats).sort((a, b) => {
+                    if (b.wins !== a.wins) return b.wins - a.wins;
+                    return b.totalScore - a.totalScore;
+                }).slice(0, 10);
 
-      if (!matchups[key]) {
-        matchups[key] = {
-          p1: players[0],
-          p2: players[1],
-          points: {
-            [players[0]]: 0,
-            [players[1]]: 0
-          }
-        };
-      }
+                let winHtml = '';
+                winRanked.forEach((b, index) => {
+                    const img = `https://beymetchannel.github.io/image-server/Blader/${b.blader_id}.jpg`;
+                    let rankClass = '';
+                    if (index < 4) rankClass = `top-rank rank-${index + 1}`;
+                    
+                    winHtml += `
+                        <div class="rank-card ${rankClass}">
+                            <img src="${img}" class="rank-icon" onerror="this.src='https://via.placeholder.com/50'">
+                            <div class="rank-name">${b.name}</div>
+                            <div class="rank-win-val">${b.wins}勝</div>
+                        </div>`;
+                });
+                document.getElementById('ranking-output').innerHTML = winHtml;
 
-      matchups[key].points[L] += row.LPoint;
-      matchups[key].points[R] += row.RPoint;
-    });
+                // 優先マッチアップ描画
+                const priorityBladers = Object.values(stats).sort((a, b) => {
+                    if (a.matchCount !== b.matchCount) return a.matchCount - b.matchCount;
+                    return (a.kana || "").localeCompare(b.kana || "", 'ja');
+                });
 
+                let matchHtml = '';
+                for (let i = 0; i < 5; i++) {
+                    const p1 = priorityBladers[i * 2];
+                    const p2 = priorityBladers[i * 2 + 1];
+                    if (!p1 || !p2) break;
 
-    // --- 勝敗判定（従来通り） ---
-    Object.values(matchups).forEach(m => {
-      const { p1, p2, points } = m;
-      const p1p = points[p1];
-      const p2p = points[p2];
+                    const img1 = `https://beymetchannel.github.io/image-server/Blader/${p1.blader_id}.jpg`;
+                    const img2 = `https://beymetchannel.github.io/image-server/Blader/${p2.blader_id}.jpg`;
 
-      if (p1p > p2p) {
-        stats[p1].win++;
-        stats[p2].lose++;
-      } else if (p1p < p2p) {
-        stats[p2].win++;
-        stats[p1].lose++;
-      } else {
-        stats[p1].draw++;
-        stats[p2].draw++;
-      }
-    });
+                    matchHtml += `
+                        <div class="matchup-card">
+                            <div class="matchup-blader">
+                                <img src="${img1}" class="blader-icon-sm">
+                                <span class="matchup-name">${p1.name}</span>
+                            </div>
+                            <div class="matchup-vs">VS</div>
+                            <div class="matchup-blader">
+                                <img src="${img2}" class="blader-icon-sm">
+                                <span class="matchup-name">${p2.name}</span>
+                            </div>
+                        </div>`;
+                }
+                document.getElementById('priority-output').innerHTML = matchHtml;
 
+                // リーグ表描画
+                const sortedList = [...bladers].sort((a, b) => (a.kana || "").localeCompare(b.kana || "", 'ja'));
+                let tableHtml = '<table><thead><tr>' +
+                    '<th class="v-col-header top-left-lock">ブレーダー詳細</th>';
+                
+                sortedList.forEach(b => {
+                    const img = `https://beymetchannel.github.io/image-server/Blader/${b.blader_id}.jpg`;
+                    tableHtml += `<th class="th-icon-cell"><img src="${img}" class="blader-icon-sm" title="${b.name}"></th>`;
+                });
+                tableHtml += '</tr></thead><tbody>';
 
-    // --- ランキング作成（勝率 → 得失点差） ---
-    const rankingArray = Object.entries(stats)
-      .map(([name, s]) => {
-        const total = s.win + s.lose + s.draw;
+                sortedList.forEach(rowB => {
+                    const img = `https://beymetchannel.github.io/image-server/Blader/${rowB.blader_id}.jpg`;
+                    const s = stats[rowB.blader_id];
+                    tableHtml += `<tr>
+                        <td class="v-col-header">
+                            <div class="header-flex">
+                                <img src="${img}" class="blader-icon-sm">
+                                <span>${rowB.name}</span>
+                                <span class="match-label">${s.matchCount} 試合</span>
+                            </div>
+                        </td>`;
+                    
+                    sortedList.forEach(colB => {
+                        if (rowB.blader_id === colB.blader_id) {
+                            tableHtml += '<td class="self-match"></td>';
+                        } else {
+                            tableHtml += `<td>${resultsMatrix[`${rowB.blader_id}-${colB.blader_id}`] || '-'}</td>`;
+                        }
+                    });
+                    tableHtml += '</tr>';
+                });
+                tableHtml += '</tbody></table>';
 
-        return {
-          name,
-          win: s.win,
-          lose: s.lose,
-          draw: s.draw,
-          scored: s.scored,
-          conceded: s.conceded,
-          diff: s.scored + s.conceded, // ← 失点は負数
-          winRate: total > 0 ? (s.win / total * 100) : 0
-        };
-      })
-      .sort((a, b) => {
-        // 勝率
-        if (b.winRate !== a.winRate) return b.winRate - a.winRate;
-        // 得失点差
-        return b.diff - a.diff;
-      });
+                document.getElementById('table-output').innerHTML = tableHtml;
 
+                const loadingEl = document.getElementById('loading');
+                if (loadingEl.style.display !== 'none') {
+                    loadingEl.style.display = 'none';
+                    document.getElementById('table-output').style.display = 'block';
+                }
 
-    // --- 表の描画 ---
-    let html = `
-      <table border="1" cellpadding="6">
-        <tr>
-          <th>順位</th>
-          <th>ブレーダー</th>
-          <th>勝</th>
-          <th>負</th>
-          <th>分</th>
-          <th>得点</th>
-          <th>失点</th>
-          <th>得失点差</th>
-          <th>勝率</th>
-        </tr>
-    `;
+            } catch (err) {
+                console.error("STADIUM ERROR:", err);
+            }
+        }
 
-    rankingArray.forEach((p, i) => {
-      html += `
-        <tr>
-          <td>${i + 1}</td>
-          <td>${p.name}</td>
-          <td>${p.win}</td>
-          <td>${p.lose}</td>
-          <td>${p.draw}</td>
-          <td>${p.scored}</td>
-          <td>${p.conceded}</td>
-          <td>${p.diff}</td>
-          <td>${p.winRate.toFixed(1)}%</td>
-        </tr>
-      `;
-    });
+        async function runStadiumSignage() {
+            await initDashboard();
 
-    html += "</table>";
-    rankingDiv.innerHTML = html;
-  }
+            // スクロール速度を0.75倍に調整！ (1.0 -> 0.75)
+            const scrollSpeed = 0.75; 
+            const frameInterval = 15; 
+            const waitTime = 5000; 
 
-  loadRanking();
-</script>
+            const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+            while (true) {
+                window.scrollTo(0, 0);
+                await wait(waitTime);
+
+                await new Promise(resolve => {
+                    const scrollTimer = setInterval(() => {
+                        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+                        if (window.scrollY >= maxScroll - 1) {
+                            clearInterval(scrollTimer);
+                            resolve();
+                        } else {
+                            window.scrollBy(0, scrollSpeed);
+                        }
+                    }, frameInterval);
+                });
+
+                await wait(waitTime);
+                await initDashboard();
+            }
+        }
+
+        runStadiumSignage();
+    </script>
 </body>
 </html>
