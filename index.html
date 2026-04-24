@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>100戦杯リーグ表 v2.0</title>
+    <title>100戦杯リーグ表 v2.1</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         /* フォントの適用 */
@@ -89,7 +89,7 @@
         .rank-card.rank-4 { background: var(--rank-4th); }
 
         .rank-icon { width: 48px; height: 48px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.8); object-fit: cover; background: #fff; }
-        .rank-name { font-size: 0.95em; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rank-name { width: 150%; font-size: 1.3em; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .rank-win-val { font-size: 1.1em; font-weight: 900; text-align: right; }
 
         /* --- 優先マッチアップ スタイル --- */
@@ -107,7 +107,7 @@
         }
         .matchup-blader { display: flex; align-items: center; gap: 8px; min-width: 0; }
         .matchup-vs { font-size: 0.9em; color: #adb5bd; font-weight: 900; }
-        .matchup-name { font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold; color: #495057; }
+        .matchup-name { font-size: 1.3em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold; color: #495057; }
 
         /* --- リーグ表スタイル (ホワイト) --- */
         .table-container { overflow: visible; background: #fff; margin-top: 25px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
@@ -116,7 +116,7 @@
 
         thead th { 
             position: sticky; 
-            top: 330px; 
+            top: 350px; 
             background: #f1f3f5; 
             z-index: 90; 
             height: 65px;
@@ -127,7 +127,7 @@
 
         .top-left-lock {
             position: sticky;
-            top: 330px;
+            top: 350px;
             left: 0;
             background: #e9ecef;
             z-index: 110 !important; 
@@ -334,13 +334,24 @@
                 await wait(waitTime);
 
                 await new Promise(resolve => {
+                    let currentY = window.scrollY; // 現在のスクロール位置を変数で保持
+
                     const scrollTimer = setInterval(() => {
                         const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-                        if (window.scrollY >= maxScroll - 1) {
+                        
+                        // 縮小しすぎてスクロールバーが存在しない（1画面に収まっている）場合はすぐに終了
+                        if (maxScroll <= 0) {
+                            clearInterval(scrollTimer);
+                            resolve();
+                            return;
+                        }
+
+                        if (currentY >= maxScroll - 1) {
                             clearInterval(scrollTimer);
                             resolve();
                         } else {
-                            window.scrollBy(0, scrollSpeed);
+                            currentY += scrollSpeed; // 小数点以下の移動量を内部で蓄積
+                            window.scrollTo(0, currentY); // 絶対位置でスクロール
                         }
                     }, frameInterval);
                 });
