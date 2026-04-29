@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>100戦杯リーグ表 v2.1</title>
+    <title>100戦杯リーグ表 v2.3</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         /* フォントの適用 */
@@ -221,25 +221,29 @@
                     }
                 });
 
-                // トップ10ブレーダー描画
-                const winRanked = Object.values(stats).sort((a, b) => {
+                // トップ10ブレーダー描画（0試合のブレーダーを除外）
+                const winRanked = Object.values(stats).filter(b => b.matchCount > 0).sort((a, b) => {
                     if (b.wins !== a.wins) return b.wins - a.wins;
                     return b.totalScore - a.totalScore;
                 }).slice(0, 10);
 
                 let winHtml = '';
-                winRanked.forEach((b, index) => {
-                    const img = `https://beymetchannel.github.io/image-server/Blader/${b.blader_id}.jpg`;
-                    let rankClass = '';
-                    if (index < 4) rankClass = `top-rank rank-${index + 1}`;
-                    
-                    winHtml += `
-                        <div class="rank-card ${rankClass}">
-                            <img src="${img}" class="rank-icon" onerror="this.src='https://via.placeholder.com/50'">
-                            <div class="rank-name">${b.name}</div>
-                            <div class="rank-win-val">${b.wins}勝</div>
-                        </div>`;
-                });
+                if (winRanked.length === 0) {
+                    winHtml = `<div style="width:100%;text-align:center;color:#adb5bd;font-size:1.4em;font-weight:900;padding:20px 0;">未確定</div>`;
+                } else {
+                    winRanked.forEach((b, index) => {
+                        const img = `https://beymetchannel.github.io/image-server/Blader/${b.blader_id}.jpg`;
+                        let rankClass = '';
+                        if (index < 4) rankClass = `top-rank rank-${index + 1}`;
+                        
+                        winHtml += `
+                            <div class="rank-card ${rankClass}">
+                                <img src="${img}" class="rank-icon" onerror="this.src='https://via.placeholder.com/50'">
+                                <div class="rank-name">${b.name}</div>
+                                <div class="rank-win-val">${b.wins}勝</div>
+                            </div>`;
+                    });
+                }
                 document.getElementById('ranking-output').innerHTML = winHtml;
 
                 // 優先マッチアップ描画
